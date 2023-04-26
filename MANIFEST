@@ -1,0 +1,14 @@
+Makefile.PL
+MANIFEST
+PatchXS.xs
+ppport.h
+README
+t/Crypt-PBKDF2-PatchXS.t
+lib/Crypt/PBKDF2/PatchXS.pm
+src/sdf.c
+src/sha.c
+src/sha.h
+src/sha64bit.c
+src/sha64bit.h
+META.yml                                 Module YAML meta-data (added by MakeMaker)
+META.json                                Module JSON meta-data (added by MakeMaker)
