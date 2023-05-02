@@ -12,7 +12,7 @@
 void hmac_sha256(
     UCHR* data, STRLEN datalen,
     UCHR* key, STRLEN keylen,
-    SV* output
+    UCHR* output
 ) { 
     int i;
     char *result;
@@ -26,17 +26,18 @@ void hmac_sha256(
     hmacfinish(&hmac);
     result = (char *) hmacdigest(&hmac);
 
-    sv_setpvn(output, result, 32);
+    memcpy(output, result, (size_t) 32);
 }
 
 SV* _PBKDF2_F( SV* self, SV* hasher, SV* salt, SV* password, SV* iterations, SV* i, SV* initial_hash ) {
     int password_len = SvCUR(password);
     UCHR* password_str = (UCHR*) SvPVbyte_nolen(password);
-    SV* result;  // XS should automatically mark this mortal
-    SV* hash;    // XXX mark this mortal
+    SV* result;  // XS automatically marks this mortal
     SV* tmp;
-    // hasher is unused; we call Digest::SHA::hmac_256() directly.
+    // hasher is unused; we call hmac_256() directly.
     int num_results;
+    uint64_t result_str[4];
+    uint64_t hash_str[4];
 
     // fprintf(stderr, "using XS _PBKDF2_F\n");
 
@@ -46,21 +47,15 @@ SV* _PBKDF2_F( SV* self, SV* hasher, SV* salt, SV* password, SV* iterations, SV*
 
     // one initial hash using initial_hash and password
 
-    result = newSV(32);
+    hmac_sha256( SvPVbyte_nolen(initial_hash), SvCUR(initial_hash), password_str, password_len, /* written to */ (UCHR *) &result_str );
 
-    hmac_sha256( SvPVbyte_nolen(initial_hash), SvCUR(initial_hash), password_str, password_len, /* written to */ result );
-
-    hash = sv_2mortal( newSVpvn(SvPVbyte_nolen(result), 32) ); // copy of result, which hmac_sha256() updated
+    memcpy(hash_str, result_str, 32);
 
     // 10,000 hashes, feeding hash and password back in to hash each loop, and combining that with the result
 
-    uint64_t * result_str = (uint64_t *) SvPVbyte_nolen(result);
-    uint64_t * hash_str = (uint64_t *) SvPVbyte_nolen(hash);
-
     for(int iter=2; iter <= _iterations; iter++) {
 
-        // hmac_sha256( SvPVbyte_nolen(hash), 32, SvPVbyte_nolen(password), SvCUR(password), /* written to */ hash );
-        hmac_sha256( (UCHR*)hash_str, 32, password_str, password_len, /* written to */ hash );
+        hmac_sha256( (UCHR*)hash_str, 32, password_str, password_len, /* written to */ (UCHR *) &hash_str );
 
         //     $result ^= $hash;
 
@@ -71,6 +66,7 @@ SV* _PBKDF2_F( SV* self, SV* hasher, SV* salt, SV* password, SV* iterations, SV*
 
     }
 
+    result = newSVpvn((UCHR*) result_str, 32);
     return result;
 
 }
@@ -89,4 +85,3 @@ _PBKDF2_F (self, hasher, salt, password, iterations, i, initial_hash)
         SV *    iterations
         SV *    i
         SV *    initial_hash
-
